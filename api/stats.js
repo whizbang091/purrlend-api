@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       const decimals = BigInt(r.decimals.toString());
       const price    = BigInt(r.priceInMarketReferenceCurrency.toString());
       const scale    = 10n ** decimals;
-      const priceDivisor = 10n ** 18n * unit;
+      const priceDivisor = 10n ** 33n * unit;
 
       totalMarketSize += BigInt(r.totalAToken.toString())        * price / scale / priceDivisor;
       totalAvailable  += BigInt(r.availableLiquidity.toString()) * price / scale / priceDivisor;
