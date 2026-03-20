@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     const contract = new ethers.Contract(UI_POOL_DATA_PROVIDER, ABI, provider);
     const [reserves, baseCurrency] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
 
-    const unit = BigInt(baseCurrency.marketReferenceCurrencyUnit.toString()); // 100000000n
+    const unit = BigInt(baseCurrency.marketReferenceCurrencyUnit.toString());
 
     let totalMarketSize = 0n;
     let totalAvailable  = 0n;
@@ -33,12 +33,11 @@ export default async function handler(req, res) {
       const decimals = BigInt(r.decimals.toString());
       const price    = BigInt(r.priceInMarketReferenceCurrency.toString());
       const scale    = 10n ** decimals;
+      const priceDivisor = 10n ** 18n * unit;
 
-      // Multiply first, then divide to preserve precision
-      // price / unit gives USD per token (price is already in unit decimals)
-      totalMarketSize += BigInt(r.totalAToken.toString())        * price / scale / unit;
-      totalAvailable  += BigInt(r.availableLiquidity.toString()) * price / scale / unit;
-      totalBorrows    += BigInt(r.totalVariableDebt.toString())  * price / scale / unit;
+      totalMarketSize += BigInt(r.totalAToken.toString())        * price / scale / priceDivisor;
+      totalAvailable  += BigInt(r.availableLiquidity.toString()) * price / scale / priceDivisor;
+      totalBorrows    += BigInt(r.totalVariableDebt.toString())  * price / scale / priceDivisor;
     }
 
     return res.status(200).json({
