@@ -15,7 +15,7 @@ function shortenUSD(value) {
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Cache-Control", "s-maxage=60");
+  res.setHeader("Cache-Control", "no-store");
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
@@ -23,24 +23,20 @@ export default async function handler(req, res) {
     const contract = new ethers.Contract(UI_POOL_DATA_PROVIDER, ABI, provider);
     const [reserves, baseCurrency] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
 
-    const unit = BigInt(baseCurrency.marketReferenceCurrencyUnit.toString());
-    let totalMarketSize = 0n, totalAvailable = 0n, totalBorrows = 0n;
-
-    for (const r of reserves) {
-      const decimals = BigInt(r.decimals.toString());
-      const price = BigInt(r.priceInMarketReferenceCurrency.toString());
-      const scale = 10n ** decimals;
-      totalMarketSize += BigInt(r.totalAToken.toString()) * price / scale;
-      totalAvailable  += BigInt(r.availableLiquidity.toString()) * price / scale;
-      totalBorrows    += BigInt(r.totalVariableDebt.toString()) * price / scale;
-    }
-
-    const toUSD = (val) => Number(val) / Number(unit);
+    // Log raw values so we can debug
+    const unit = baseCurrency.marketReferenceCurrencyUnit.toString();
+    const debugReserves = reserves.map(r => ({
+      symbol: r.symbol,
+      decimals: r.decimals.toString(),
+      price: r.priceInMarketReferenceCurrency.toString(),
+      totalAToken: r.totalAToken.toString(),
+      availableLiquidity: r.availableLiquidity.toString(),
+      totalVariableDebt: r.totalVariableDebt.toString(),
+    }));
 
     return res.status(200).json({
-      totalMarketSize: shortenUSD(toUSD(totalMarketSize)),
-      totalAvailable:  shortenUSD(toUSD(totalAvailable)),
-      totalBorrows:    shortenUSD(toUSD(totalBorrows)),
+      marketReferenceCurrencyUnit: unit,
+      reserves: debugReserves,
     });
 
   } catch (err) {
