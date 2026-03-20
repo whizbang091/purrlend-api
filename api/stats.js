@@ -33,11 +33,14 @@ export default async function handler(req, res) {
       const decimals = BigInt(r.decimals.toString());
       const price    = BigInt(r.priceInMarketReferenceCurrency.toString());
       const scale    = 10n ** decimals;
-      const priceDivisor = 10n ** 33n * unit;
+      // price digits - 8 (unit decimals) = total extra decimals to remove
+      const priceStr = price.toString();
+      const priceExtraDecimals = BigInt(priceStr.length - 8);
+      const priceDivisor = 10n ** priceExtraDecimals;
 
-      totalMarketSize += BigInt(r.totalAToken.toString())        * price / scale / priceDivisor;
-      totalAvailable  += BigInt(r.availableLiquidity.toString()) * price / scale / priceDivisor;
-      totalBorrows    += BigInt(r.totalVariableDebt.toString())  * price / scale / priceDivisor;
+      totalMarketSize += BigInt(r.totalAToken.toString())        * price / scale / priceDivisor / unit;
+      totalAvailable  += BigInt(r.availableLiquidity.toString()) * price / scale / priceDivisor / unit;
+      totalBorrows    += BigInt(r.totalVariableDebt.toString())  * price / scale / priceDivisor / unit;
     }
 
     return res.status(200).json({
