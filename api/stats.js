@@ -21,22 +21,27 @@ export default async function handler(req, res) {
   try {
     const provider = new ethers.JsonRpcProvider(HYPEREVM_RPC);
     const contract = new ethers.Contract(UI_POOL_DATA_PROVIDER, ABI, provider);
-    const [reserves, baseCurrency] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
+    const [reserves] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
 
-    // Log raw values so we can debug
-    const unit = baseCurrency.marketReferenceCurrencyUnit.toString();
-    const debugReserves = reserves.map(r => ({
-      symbol: r.symbol,
-      decimals: r.decimals.toString(),
-      price: r.priceInMarketReferenceCurrency.toString(),
-      totalAToken: r.totalAToken.toString(),
-      availableLiquidity: r.availableLiquidity.toString(),
-      totalVariableDebt: r.totalVariableDebt.toString(),
-    }));
+    let totalMarketSize = 0;
+    let totalAvailable = 0;
+    let totalBorrows = 0;
+
+    for (const r of reserves) {
+      const decimals = Number(r.decimals);
+      // price is in 1e8 units (e.g. 100000000 = $1.00)
+      const priceUSD = Number(r.priceInMarketReferenceCurrency) / 1e8;
+      const toUSD = (raw) => (Number(ethers.formatUnits(raw, decimals))) * priceUSD;
+
+      totalMarketSize += toUSD(r.totalAToken);
+      totalAvailable  += toUSD(r.availableLiquidity);
+      totalBorrows    += toUSD(r.totalVariableDebt);
+    }
 
     return res.status(200).json({
-      marketReferenceCurrencyUnit: unit,
-      reserves: debugReserves,
+      totalMarketSize: shortenUSD(totalMarketSize),
+      totalAvailable:  shortenUSD(totalAvailable),
+      totalBorrows:    shortenUSD(totalBorrows),
     });
 
   } catch (err) {
