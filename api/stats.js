@@ -23,32 +23,28 @@ export default async function handler(req, res) {
     const contract = new ethers.Contract(UI_POOL_DATA_PROVIDER, ABI, provider);
     const [reserves, baseCurrency] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
 
-    // marketReferenceCurrencyUnit = 100000000 (1e8)
-    // price is in ray (1e27) scaled to marketReferenceCurrencyUnit
-    // so actual USD price = price / 1e27 * (1e8 / marketReferenceCurrencyUnit) ... 
-    // simplest: divide price by 1e27, multiply by marketReferenceCurrencyUnit, then divide by 1e8
-    const unit = Number(baseCurrency.marketReferenceCurrencyUnit); // 1e8
+    const unit = BigInt(baseCurrency.marketReferenceCurrencyUnit.toString()); // 100000000n
 
-    let totalMarketSize = 0;
-    let totalAvailable = 0;
-    let totalBorrows = 0;
+    let totalMarketSize = 0n;
+    let totalAvailable  = 0n;
+    let totalBorrows    = 0n;
 
     for (const r of reserves) {
-      const decimals = Number(r.decimals);
-      // price in market reference currency — divide by unit to get USD
-      const priceUSD = Number(ethers.formatUnits(r.priceInMarketReferenceCurrency, 27)) * (unit / 1e8);
+      const decimals = BigInt(r.decimals.toString());
+      const price    = BigInt(r.priceInMarketReferenceCurrency.toString());
+      const scale    = 10n ** decimals;
 
-      const toUSD = (raw) => Number(ethers.formatUnits(raw, decimals)) * priceUSD;
-
-      totalMarketSize += toUSD(r.totalAToken);
-      totalAvailable  += toUSD(r.availableLiquidity);
-      totalBorrows    += toUSD(r.totalVariableDebt);
+      // Multiply first, then divide to preserve precision
+      // price / unit gives USD per token (price is already in unit decimals)
+      totalMarketSize += BigInt(r.totalAToken.toString())        * price / scale / unit;
+      totalAvailable  += BigInt(r.availableLiquidity.toString()) * price / scale / unit;
+      totalBorrows    += BigInt(r.totalVariableDebt.toString())  * price / scale / unit;
     }
 
     return res.status(200).json({
-      totalMarketSize: shortenUSD(totalMarketSize),
-      totalAvailable:  shortenUSD(totalAvailable),
-      totalBorrows:    shortenUSD(totalBorrows),
+      totalMarketSize: shortenUSD(Number(totalMarketSize)),
+      totalAvailable:  shortenUSD(Number(totalAvailable)),
+      totalBorrows:    shortenUSD(Number(totalBorrows)),
     });
 
   } catch (err) {
