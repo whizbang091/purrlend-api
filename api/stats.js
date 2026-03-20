@@ -26,9 +26,8 @@ export default async function handler(req, res) {
       const decimals = BigInt(r.decimals.toString());
       const price    = BigInt(r.priceInMarketReferenceCurrency.toString());
       const amount   = BigInt(r.totalAToken.toString());
-      // normalize all tokens to 18 decimals first, then apply fixed 43 divisor
       const normalized = amount * 10n ** (18n - decimals);
-      totalMarketSize += normalized * price / 10n ** 18n / 10n ** 43n;
+      totalMarketSize += normalized * price / 10n ** 18n / 10n ** 46n;
     }
 
     return res.status(200).json({
