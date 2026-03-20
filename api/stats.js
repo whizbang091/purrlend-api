@@ -21,7 +21,13 @@ export default async function handler(req, res) {
   try {
     const provider = new ethers.JsonRpcProvider(HYPEREVM_RPC);
     const contract = new ethers.Contract(UI_POOL_DATA_PROVIDER, ABI, provider);
-    const [reserves] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
+    const [reserves, baseCurrency] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
+
+    // marketReferenceCurrencyUnit = 100000000 (1e8)
+    // price is in ray (1e27) scaled to marketReferenceCurrencyUnit
+    // so actual USD price = price / 1e27 * (1e8 / marketReferenceCurrencyUnit) ... 
+    // simplest: divide price by 1e27, multiply by marketReferenceCurrencyUnit, then divide by 1e8
+    const unit = Number(baseCurrency.marketReferenceCurrencyUnit); // 1e8
 
     let totalMarketSize = 0;
     let totalAvailable = 0;
@@ -29,9 +35,10 @@ export default async function handler(req, res) {
 
     for (const r of reserves) {
       const decimals = Number(r.decimals);
-      // price is in 1e8 units (e.g. 100000000 = $1.00)
-      const priceUSD = Number(r.priceInMarketReferenceCurrency) / 1e8;
-      const toUSD = (raw) => (Number(ethers.formatUnits(raw, decimals))) * priceUSD;
+      // price in market reference currency — divide by unit to get USD
+      const priceUSD = Number(ethers.formatUnits(r.priceInMarketReferenceCurrency, 27)) * (unit / 1e8);
+
+      const toUSD = (raw) => Number(ethers.formatUnits(raw, decimals)) * priceUSD;
 
       totalMarketSize += toUSD(r.totalAToken);
       totalAvailable  += toUSD(r.availableLiquidity);
