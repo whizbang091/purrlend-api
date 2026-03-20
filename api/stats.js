@@ -23,30 +23,32 @@ export default async function handler(req, res) {
     const contract = new ethers.Contract(UI_POOL_DATA_PROVIDER, ABI, provider);
     const [reserves, baseCurrency] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
 
-    const unit = BigInt(baseCurrency.marketReferenceCurrencyUnit.toString());
+    const unit = BigInt(baseCurrency.marketReferenceCurrencyUnit.toString()); // 1e8
 
-    let totalMarketSize = 0n;
-    let totalAvailable  = 0n;
-    let totalBorrows    = 0n;
+    let totalMarketSize = 0;
+    let totalAvailable  = 0;
+    let totalBorrows    = 0;
 
     for (const r of reserves) {
-      const decimals = BigInt(r.decimals.toString());
-      const price    = BigInt(r.priceInMarketReferenceCurrency.toString());
-      const scale    = 10n ** decimals;
-      // price digits - 8 (unit decimals) = total extra decimals to remove
-      const priceStr = price.toString();
-      const priceExtraDecimals = BigInt(priceStr.length - 8);
-      const priceDivisor = 10n ** priceExtraDecimals;
+      const decimals = Number(r.decimals);
+      const price    = r.priceInMarketReferenceCurrency.toString();
+      // price is always 1e(decimals + 22 + 8) based on Aave V3 on HyperEVM
+      // so priceUSD = price / 10^(decimals + 22) / 1e8 * 1e8 = price / 10^(decimals+22)
+      const PRICE_EXTRA = 22;
+      const priceDivisor = Math.pow(10, decimals + PRICE_EXTRA);
+      const priceUSD = Number(price) / priceDivisor;
 
-      totalMarketSize += BigInt(r.totalAToken.toString())        * price / scale / priceDivisor / unit;
-      totalAvailable  += BigInt(r.availableLiquidity.toString()) * price / scale / priceDivisor / unit;
-      totalBorrows    += BigInt(r.totalVariableDebt.toString())  * price / scale / priceDivisor / unit;
+      const toUSD = (raw) => (Number(raw) / Math.pow(10, decimals)) * priceUSD;
+
+      totalMarketSize += toUSD(r.totalAToken.toString());
+      totalAvailable  += toUSD(r.availableLiquidity.toString());
+      totalBorrows    += toUSD(r.totalVariableDebt.toString());
     }
 
     return res.status(200).json({
-      totalMarketSize: shortenUSD(Number(totalMarketSize)),
-      totalAvailable:  shortenUSD(Number(totalAvailable)),
-      totalBorrows:    shortenUSD(Number(totalBorrows)),
+      totalMarketSize: shortenUSD(totalMarketSize),
+      totalAvailable:  shortenUSD(totalAvailable),
+      totalBorrows:    shortenUSD(totalBorrows),
     });
 
   } catch (err) {
