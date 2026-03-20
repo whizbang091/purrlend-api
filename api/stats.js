@@ -6,10 +6,6 @@ const UI_POOL_DATA_PROVIDER = "0x0C591b5A3615c21cbd09F028F2E4509C2938F65E";
 
 const ABI = ["function getReservesData(address provider) view returns ((address underlyingAsset, string name, string symbol, uint256 decimals, uint256 baseLTVasCollateral, uint256 reserveLiquidationThreshold, uint256 reserveLiquidationBonus, uint256 reserveFactor, bool usageAsCollateralEnabled, bool borrowingEnabled, bool isActive, bool isFrozen, uint128 liquidityIndex, uint128 variableBorrowIndex, uint128 liquidityRate, uint128 variableBorrowRate, uint40 lastUpdateTimestamp, address aTokenAddress, address variableDebtTokenAddress, address interestRateStrategyAddress, uint256 availableLiquidity, uint256 totalVariableDebt, uint256 priceInMarketReferenceCurrency, uint256 variableRateSlope1, uint256 variableRateSlope2, uint256 baseVariableBorrowRate, uint256 optimalUsageRatio, uint256 totalAToken, uint256 priceInEth, uint256 accruedToTreasury, uint256 unbacked, uint256 isolationModeTotalDebt, bool flashLoanEnabled, uint256 debtCeiling, uint256 debtCeilingDecimals, uint8 eModeCategoryId, uint256 borrowCap, uint256 supplyCap, uint16 eModeLtv, uint16 eModeLiquidationThreshold, uint16 eModeLiquidationBonus, address eModePriceSource, string eModeLabel, bool borrowableInIsolation)[], (uint256 marketReferenceCurrencyUnit, int256 marketReferencePriceInUsd, uint256 networkBaseTokenPriceInUsd))"];
 
-function formatUSD(n) {
-  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "no-store");
@@ -20,20 +16,16 @@ export default async function handler(req, res) {
     const contract = new ethers.Contract(UI_POOL_DATA_PROVIDER, ABI, provider);
     const [reserves] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
 
-    let totalMarketSize = 0n;
-
-    for (const r of reserves) {
+    const breakdown = reserves.map(r => {
       const decimals = BigInt(r.decimals.toString());
       const price    = BigInt(r.priceInMarketReferenceCurrency.toString());
       const amount   = BigInt(r.totalAToken.toString());
       const priceDivisor = 10n ** (25n + decimals);
-      totalMarketSize += amount * price / 10n ** decimals / priceDivisor;
-    }
-
-    // totalMarketSize is already in whole dollars from BigInt math
-    return res.status(200).json({
-      totalMarketSize: formatUSD(Number(totalMarketSize)),
+      const usd = amount * price / 10n ** decimals / priceDivisor;
+      return { symbol: r.symbol, decimals: r.decimals.toString(), usd: usd.toString() };
     });
+
+    return res.status(200).json({ breakdown });
 
   } catch (err) {
     return res.status(500).json({ error: err.message });
