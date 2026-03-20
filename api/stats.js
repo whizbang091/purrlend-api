@@ -23,22 +23,24 @@ export default async function handler(req, res) {
     const contract = new ethers.Contract(UI_POOL_DATA_PROVIDER, ABI, provider);
     const [reserves, baseCurrency] = await contract.getReservesData(POOL_ADDRESSES_PROVIDER);
 
-    const unit = Number(baseCurrency.marketReferenceCurrencyUnit);
-    let totalMarketSize = 0, totalAvailable = 0, totalBorrows = 0;
+    const unit = BigInt(baseCurrency.marketReferenceCurrencyUnit.toString());
+    let totalMarketSize = 0n, totalAvailable = 0n, totalBorrows = 0n;
 
     for (const r of reserves) {
-      const decimals = Number(r.decimals);
-      const price = Number(r.priceInMarketReferenceCurrency);
-      const toUSD = (raw) => (Number(raw) / Math.pow(10, decimals)) * (price / unit);
-      totalMarketSize += toUSD(r.totalAToken);
-      totalAvailable += toUSD(r.availableLiquidity);
-      totalBorrows += toUSD(r.totalVariableDebt);
+      const decimals = BigInt(r.decimals.toString());
+      const price = BigInt(r.priceInMarketReferenceCurrency.toString());
+      const scale = 10n ** decimals;
+      totalMarketSize += BigInt(r.totalAToken.toString()) * price / scale;
+      totalAvailable  += BigInt(r.availableLiquidity.toString()) * price / scale;
+      totalBorrows    += BigInt(r.totalVariableDebt.toString()) * price / scale;
     }
 
+    const toUSD = (val) => Number(val) / Number(unit);
+
     return res.status(200).json({
-      totalMarketSize: shortenUSD(totalMarketSize),
-      totalAvailable: shortenUSD(totalAvailable),
-      totalBorrows: shortenUSD(totalBorrows),
+      totalMarketSize: shortenUSD(toUSD(totalMarketSize)),
+      totalAvailable:  shortenUSD(toUSD(totalAvailable)),
+      totalBorrows:    shortenUSD(toUSD(totalBorrows)),
     });
 
   } catch (err) {
